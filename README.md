@@ -1,4 +1,4 @@
-# SP_25_Transportation  
+# Cornell Data Journal SP_25_Transportation  
 **CDJ Spring 25 Transportation Analysis**  
 
 ## Team Members:  
@@ -17,6 +17,7 @@ Due to the variety of tools used by the team for data processing, we don't have 
 - One team member's visualizations were ultimately not included in the final analysis, so their code is also not provided.
 
 - The data cleaning process was done individually by team members, with each focusing on different features and creating visualizations in a way that suited their preferred tools.
+- The Excel sheets and ipynb code for the unused model can be found in team member's individual folders send to the editorial team
   
 - We have uploaded the code for the visualizations included in the final report:  
   - **Google Colab** (Python-based)  
