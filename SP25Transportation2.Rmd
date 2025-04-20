@@ -1,0 +1,199 @@
+---
+title: 'CDJ Transportation Group EDA SP 2025'
+author: "Tianyi Chen"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+
+ 
+```{r setup, include=FALSE}
+library(formatR)
+knitr::opts_chunk$set(echo = TRUE, 
+                      error = TRUE, 
+                      tidy.opts=list(width.cutoff=70), 
+                      tidy  = TRUE,
+                      eval = TRUE, collapse = TRUE)
+```
+
+```{r}
+#THIS R SCRIPT IS ASSOCIATED WITH FIGURE 3.1 in the respective CDJ Article.
+```
+
+
+```{r }
+#Read csv files
+trans.data <- read.csv("~/Downloads/Transportation_Sites_20250310.csv")
+
+#convert graduation data to csv
+grad.data <- read.csv("/Users/tianyichen/Documents/2024-graduation-rates-public-borough/All-Table 1.csv")
+
+#get unique variable names
+print("transportation data")
+colnames(trans.data)
+print("graduation data")
+colnames(grad.data)
+
+```
+
+Notes: City in trans.data = Borough in grad.data
+Independent Variable: Stop_To_School_Service, Door_To_Door_Service (need public schools only)
+Dependent Variable: X..Total.Regents.of.Grads (percentage of students graduating)
+
+
+```{r }
+#extract relevant columns from each dataset
+
+#extract Borough, X..Total.Regents.of.Grads in grad.data
+Boroughs.grad <- grad.data$Borough
+Percent.grad <- grad.data$X..Total.Regents.of.Grads
+Year.enter <- grad.data$Cohort.Year
+Time.program <- grad.data$Cohort
+
+#convert Year.grad into str
+Year.grad <- as.character(Year.grad)
+  
+#create a new dataframe with both Borough/Grads 
+grad.data.all <- data.frame(Boroughs.grad, Percent.grad, Year.enter, Time.program) 
+
+#filter for only 4 year programs
+grad.data.all <- grad.data.all[grad.data.all$Time.program == "4 year August" | grad.data.all$Time.program == "4 year June", ]
+
+#extract cities (boroughs), year, door service vs stop service in transportation data
+Boroughs.trans <- trans.data$City
+Year.trans <- trans.data$School_Year
+Door.trans <- trans.data$Door_To_Door_Service
+Stop.trans <- trans.data$Stop_To_School_Service
+Site.trans <- trans.data$Site_Type
+Aff.trans <- trans.data$Affiliation
+
+#create new dataframe with all transportation data
+trans.data.all <- data.frame(Boroughs.trans, Year.trans, Door.trans, Stop.trans, Site.trans, Aff.trans)
+
+#filter for only public schools
+trans.data.all <- trans.data.all[trans.data.all$Aff.trans == "Public" & trans.data.all$Site.trans == "School", ]
+
+
+```
+
+```{r }
+#It looks like in the graduation data, we only have Bronx, Brooklyn, Manhattan, Queen, and Staten Island. Thus, we want to filter for these boroughs only in the transportation data
+
+common.boroughs <- c("Bronx", "Brooklyn", "Manhattan", "Queens", "Staten Island")
+trans.data.all <- trans.data.all[trans.data.all$Boroughs.trans %in% common.boroughs, ]
+
+#the graduation data is from 2012 to 2020
+#convert Year.enter into chr
+
+Year.enter <- as.character(grad.data.all$Year.enter)
+
+#filter transportation data with years which appear in the graduation data
+trans.data.all <- trans.data.all[sapply(trans.data.all$Year.trans, 
+                                        function(x) any(sapply(Year.enter, grepl, x))), ]
+
+```
+
+
+```{r }
+
+#1. every entering year in Year.enter in grad.data.all, find the observations of corresponding start year in Year.trans in trans.data.all 
+
+#Count 'Yes' and 'No' responses for Door.trans and Stop.trans per Borough and Year
+trans.data.agg <- aggregate(cbind(Door.trans, Stop.trans) ~ Boroughs.trans + Year.trans, data = trans.data.all, FUN = function(x) {
+                              yes_count <- sum(x == "Yes")
+                              no_count <- sum(x == "No")
+                              ratio_yes <- ifelse((yes_count + no_count) == 0, NA, yes_count / (yes_count + no_count))
+                              return(ratio_yes)
+                            })
+#sort the data
+trans.data.agg <- trans.data.agg[order(trans.data.agg$Boroughs.trans), ]
+
+#take away any year that's not between 2015 and 2020 in grad.data.all
+grad.data.all <- subset(grad.data.all, Year.enter >= 2015 & Year.enter <= 2019)
+
+#oriente dates in increasing order for grad.data.all
+grad.data.all <- grad.data.all[order(grad.data.all$Boroughs.grad, grad.data.all$Year.enter), ]
+
+#reset row names
+rownames(grad.data.all) <- NULL
+rownames(trans.data.agg) <- NULL
+
+```
+
+
+```{r }
+#create two datasets -- one by 4 year august and 4 year june
+
+#4 year june
+grad.data.june <- grad.data.all[grad.data.all$Time.program == "4 year June", ]
+grad.data.june$Boroughs.grad <- NULL
+
+grad.trans.june <- data.frame(trans.data.agg$Boroughs.trans, trans.data.agg$Year.trans, trans.data.agg$Door.trans, trans.data.agg$Stop.trans, grad.data.june)
+
+
+#4 year august
+grad.data.aug <- grad.data.all[grad.data.all$Time.program == "4 year August", ]
+grad.data.aug$Boroughs.grad <- NULL
+
+grad.trans.aug <- data.frame(trans.data.agg$Boroughs.trans, trans.data.agg$Year.trans, trans.data.agg$Door.trans, trans.data.agg$Stop.trans, grad.data.aug)
+
+#rename the columns
+colnames(grad.trans.june) <- c("Borough", "Transportation Year", "Ratio Door-Door", "Ratio Stop", "Percent Graduated", "Year Entered HS", "Graduation Program")
+colnames(grad.trans.aug) <- c("Borough", "Transportation Year", "Ratio Door-Door", "Ratio Stop", "Percent Graduated", "Year Entered HS", "Graduation Program")
+
+
+```
+
+1. Get correlation coefficient
+
+```{r }
+
+#correlation matrix for Door-To-Door vs. Stop vs. 4-Year June vs. 4 Year August
+#Excluding Borough
+
+X1 <- trans.data.agg$Door.trans
+X2 <- trans.data.agg$Stop.trans
+Y1 <- grad.trans.june$`Percent Graduated`
+Y2 <- grad.trans.aug$`Percent Graduated`
+
+corr_data <- data.frame(X1, X2, Y1, Y2)
+colnames(corr_data) <- c("Door to Door", "Stop", "June Grads %", "Aug Grads %")
+
+#create correlation matrix
+cor_matrix <- cor(corr_data)
+print(cor_matrix)
+
+#create visually appealing correlation matrix
+
+#melt the correlation matrix
+library(reshape2)
+melted_cormat <- melt(cor_matrix)
+head(melted_cormat)
+
+#create a visual
+library(ggplot2)
+ggplot(data = melted_cormat, aes(x = Var1, y = Var2, fill = value)) + 
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "red", high = "blue", mid = "purple", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab") + 
+  ggtitle("Door-To-Door/Stop versus June Grads/August Grads") +
+  theme(text = element_text(family = "roboto"), 
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(x = NULL, y = NULL)
+
+#add a cool font
+install.packages("showtext")
+library(showtext)
+font_add_google("Roboto Slab", "roboto")
+showtext_auto()
+
+```
+```{r}
+#tests for significance
+cor.test(X1, Y1) #Door to Door / June Grads
+cor.test(X1, Y2) #Door to Door / Aug Grads
+cor.test(X2, Y1) #Stop / June Grads
+cor.test(X2, Y2) #Stop / Aug Grads
+
+```
